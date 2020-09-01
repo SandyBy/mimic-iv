@@ -1,7 +1,7 @@
 -- Calculate duration of mechanical ventilation.
 -- Some useful cases for debugging:
---  stay_id = 30019660 has a tracheostomy placed in the ICU
---  stay_id = 30000117 has explicit documentation of extubation
+--  stay_id = 30019660 has a tracheostomy placed in the ICU -- yugang: this is not found in my query
+--  stay_id = 30000117 has explicit documentation of extubation -- yugang: this is not found in my query
 WITH vs AS
 (
     select
@@ -46,7 +46,7 @@ WITH vs AS
       ELSE NULL END
     ) as MechVent
     , MAX(COALESCE(extubated, 0)) AS Extubated
-  FROM `physionet-data.mimic_derived.pivoted_ventilator_settings`
+  FROM `vvs-marketscan.yugang_dev.pivoted_ventilator_settings`
   GROUP BY stay_id, charttime
 )
 , vd0 AS
@@ -85,7 +85,8 @@ WITH vs AS
 
       -- calculate the time since the last event
       -- since charttime_lag is NULL for non-mechvent rows, this is only present on MechVent=1 rows
-      , TIMESTAMP_DIFF(charttime, charttime_lag, MINUTE)/60 as ventduration
+      -- yugang: have to convert the datetime variable to timestamp to make this function work
+      , TIMESTAMP_DIFF(timestamp(charttime), timestamp(charttime_lag), MINUTE)/60 as ventduration
 
       -- now we determine if the current mech vent event is a "new", i.e. they've just been intubated
       , case
@@ -100,7 +101,8 @@ WITH vs AS
           when MechVent = 0 then 1
           -- if there has been 8 hours since the last mech vent documentation,
           -- then we assume they were extubated earlier
-          when CHARTTIME > TIMESTAMP_ADD(charttime_lag, INTERVAL 8 HOUR)
+          -- yugang: change the format to timestamp to make it work
+          when timestamp(CHARTTIME) > TIMESTAMP_ADD(timestamp(charttime_lag), INTERVAL 8 HOUR)
             then 1
         else 0
         end as newvent
